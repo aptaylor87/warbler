@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm
 from models import db, connect_db, User, Message
+import pdb
 
 CURR_USER_KEY = "curr_user"
 
@@ -113,7 +114,9 @@ def login():
 def logout():
     """Handle logout of user."""
 
-    # IMPLEMENT THIS
+    do_logout()
+    flash("Successfully logged out")
+    return redirect('/login')
 
 
 ##############################################################################
@@ -290,7 +293,7 @@ def homepage():
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
+    # pdb.set_trace()
     if g.user:
         messages = (Message
                     .query
