@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, flash, redirect, session, g
 from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
-from forms import UserAddForm, LoginForm, MessageForm
+from forms import UserAddForm, LoginForm, MessageForm, UserEditForm
 from models import db, connect_db, User, Message
 import pdb
 
@@ -19,9 +19,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = (
 
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ECHO'] = False
-app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = True
+app.config['DEBUG_TB_INTERCEPT_REDIRECTS'] = False
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', "it's a secret")
-toolbar = DebugToolbarExtension(app)
+# toolbar = DebugToolbarExtension(app)
 
 connect_db(app)
 
@@ -214,7 +214,27 @@ def stop_following(follow_id):
 def profile():
     """Update profile for current user."""
 
-    # IMPLEMENT THIS
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    user = User.query.get_or_404(g.user.id)
+    form = UserEditForm(obj=user)
+    if form.validate_on_submit():
+        edit_user = User.authenticate(form.username.data,
+                                 form.password.data)
+
+        if edit_user:
+            user.username = form.username.data
+            user.email = form.email.data
+            user.image_url = form.image_url.data
+            user.header_image_url = form.header_image_url.data
+            user.bio = form.bio.data
+        
+            db.session.commit()
+            return redirect (f'/users/{user.id}')
+        flash("Incorrect Password")
+    return render_template('/users/edit.html', form=form, user=user)
+    
 
 
 @app.route('/users/delete', methods=["POST"])
@@ -231,6 +251,39 @@ def delete_user():
     db.session.commit()
 
     return redirect("/signup")
+
+@app.route('/users/add_like/<int:message_id>', methods=["GET", "POST"])
+def update_like(message_id):
+
+    if not g.user:
+        flash("Access unauthorized.", "danger")
+        return redirect("/")
+    
+    msg = Message.query.get(message_id)
+    user = User.query.get_or_404(g.user.id)
+
+    if msg not in user.likes:
+        user.likes.append(msg)
+        db.session.commit()
+    elif msg  in user.likes:
+        user.likes.remove(msg)
+        db.session.commit()
+
+
+
+    return redirect(request.referrer)
+
+
+@app.route('/users/<int:user_id>/likes')
+def users_show_likes(user_id):
+    """Show user likes"""
+
+    user = User.query.get_or_404(user_id)
+
+    # snagging messages in order from the database;
+    # user.messages won't be in order by default
+    messages = user.likes
+    return render_template('users/show.html', user=user, messages=messages)
 
 
 ##############################################################################
@@ -295,11 +348,13 @@ def homepage():
     """
     # pdb.set_trace()
     if g.user:
+        user = User.query.get_or_404(g.user.id)
+        user_following_list = [g.user.id] + [u.id for u in user.following]
         messages = (Message
                     .query
                     .order_by(Message.timestamp.desc())
-                    .limit(100)
-                    .all())
+                    .filter(Message.user_id.in_(user_following_list))
+                    .limit(100))
 
         return render_template('home.html', messages=messages)
 

@@ -62,7 +62,7 @@ class MessageViewTestCase(TestCase):
                 sess[CURR_USER_KEY] = self.testuser.id
 
             # Now, that session setting is saved, so we can have
-            # the rest of ours test
+            # the rest of our tests
 
             resp = c.post("/messages/new", data={"text": "Hello"})
 
@@ -71,3 +71,72 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+    
+    def test_show_message(self):
+        """Can we show messages for a user"""
+
+        msg = Message(text="test test test", 
+                      user_id=self.testuser.id)
+
+        db.session.add(msg)
+        db.session.commit()
+        
+        test_msg = Message.query.one()
+
+        resp = self.client.get(f"/messages/{test_msg.id}")
+
+        self.assertEqual(resp.status_code, 200)
+
+    def test_delete_message(self):
+        """Can we delete a message"""
+        msg = Message(text="test test test", 
+                      user_id=self.testuser.id)
+
+        db.session.add(msg)
+        db.session.commit()
+        
+        test_msg = Message.query.one()
+
+        resp = self.client.post(f"/messages/{test_msg.id}/delete")
+
+        self.assertEqual(resp.status_code, 302)
+
+    def test_logged_out_add_message(self):
+        """Is a user blocked from adding a message if they aren't logged in"""
+
+        resp = self.client.post("/messages/new", data={"text": "Hello"})
+
+        # Make sure it redirects
+        self.assertEqual(resp.status_code, 302)
+
+        messages = Message.query.all()
+
+        self.assertEqual(len(messages), 0)
+
+    def test_logged_out_delete_message(self):
+        """Is a user blocked from deleting a message when they are logged out"""
+        msg = Message(text="test test test", 
+                      user_id=self.testuser.id)
+
+        db.session.add(msg)
+        db.session.commit()
+
+        resp = self.client.post(f"/messages/{msg.id}/delete")
+
+        messages = Message.query.all()
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(len(messages), 1)
+
+    
+
+
+
+
+
+
+
+
+
+
+    
